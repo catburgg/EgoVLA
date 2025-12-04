@@ -1,4 +1,4 @@
-DATASET_ROOT=data/OTV
+DATASET_ROOT=data/EgoVLA-Humanoid-Sim
 SAVE_PATH=processed_data_otv
 
 additional_tag=FIXED_SET_MIX

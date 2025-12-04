@@ -46,8 +46,11 @@ export PYTHONPATH=$PYTHONPATH:/path/to/your/hot3d
 Overall instruction for setup IsaacLab: https://isaac-sim.github.io/IsaacLab/main/index.html
 
 * Follow the instruction to install IsaacSim (4.2.0.2)
-  ```
+  ```bash
   pip install isaacsim==4.2.0.2 --extra-index-url https://pypi.nvidia.com
+
+  # if this command failed please try the following command:
+  # pip install isaacsim==4.2.0.2 isaacsim-extscache-physics==4.2.0.2 isaacsim-extscache-kit==4.2.0.2 isaacsim-extscache-kit-sdk==4.2.0.2 --extra-index-url https://pypi.nvidia.com
   ```
 * Clone [Ego Humanoid Manipulation Benchmark](https://github.com/quincy-u/Ego_Humanoid_Manipulation_Benchmark), then install it with the command in the instruction
 
@@ -165,7 +168,7 @@ huggingface-cli download rchal97/egovla --repo-type model --local-dir checkpoint
 
 
 ```bash
-bash training_scripts/robot_finetuning/hoi4dhot3dholotaco_p30_h5_transv2.sh
+bash training_scripts/human_video_pretraining/trans_v2_f1p30_split.sh
 ```
 
 #### Robot Data Fine-tuning
@@ -232,6 +235,18 @@ python human_plan/ego_bench_eval/batch_script_30hz.py
 The code hasn't been fully tested yet: There might be some hard-coded path issue. Let me know if there is any issues.
 
 This software is part of the BAIR Commons HIC Repository as of calendar year 2025.
+
+## FAQ:
+
+1. Error: 
+`"deepspeed/runtime/config_utils.py", line 116, in get_config_default field name). required,
+f"'{field name?" is a required field and does not have a default value"
+`
+
+    Cause: VILA requires pydantic==v1, and IsaacSim 4.2.0.2 would install one pydantic==V2
+
+    Fix: remove `anaconda3/envs/vila/lib/python3.10/site-packages/isaacsim/extscache/omni.kit.pip_archive-0.0.0+10a4b5c0.lx64.cp310/pip_prebundle/pydantic`  
+
 
 ## Bibtex
 ```

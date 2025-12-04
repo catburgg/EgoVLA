@@ -1,4 +1,4 @@
-DATASET_ROOT=data/data/OTV
+DATASET_ROOT=data/EgoVLA-Humanoid-Sim
 SAVE_PATH=data/processed_data_otv
 
 CHUNKS=32
