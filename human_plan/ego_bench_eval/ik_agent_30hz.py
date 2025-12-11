@@ -1,4 +1,3 @@
-
 import os
 import tqdm
 
@@ -74,6 +73,12 @@ from human_plan.vila_eval.utils.load_model import load_model_eval
 def main():
 
     model_args, data_args, training_args, task_args = parser.parse_args_into_dataclasses()
+
+    from pathlib import Path
+    _result_path = Path(task_args.result_saving_path) if task_args.result_saving_path is not None else None
+    _result_path.parent.mkdir(parents=True, exist_ok=True)
+    if not _result_path.exists():
+      _result_path.touch()
 
     model, tokenizer, model_args, data_args, training_args = load_model_eval(
       model_args, data_args, training_args

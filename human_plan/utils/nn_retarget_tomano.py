@@ -109,7 +109,8 @@ def train_model(model, train_loader, val_loader, epochs=50, lr=0.001):
 def infer_retarget_to_mano(model, qpos):
     model.eval()
     with torch.no_grad():
-        input_tensor = torch.tensor(qpos, dtype=torch.float32)[..., hand_qpos_ids].reshape(-1, 24)
+        device = next(model.parameters()).device
+        input_tensor = torch.tensor(qpos, dtype=torch.float32, device=device)[..., hand_qpos_ids].reshape(-1, 24)
         predictions = model(input_tensor)
     return predictions.squeeze().detach().cpu().numpy()
 

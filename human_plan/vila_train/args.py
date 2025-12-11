@@ -33,6 +33,9 @@ class VLAModelArguments(ModelArguments):
 
     ee_rot_representation: Optional[str] = field(default="quat")
 
+    smooth_weight: float = field(default=0.2)
+    hand_smooth_weight: float = field(default=0.8)
+
 @dataclass 
 class VLADataArguments(DataArguments):
 

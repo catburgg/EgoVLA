@@ -23,14 +23,14 @@ room_indexes = ["1", "2", "3"]
 table_indexes = ["1"]
 # table_indexes = ["2", "3"]
 # episode_indexes = ["1", "2", "3", "4", "5"]
-num_episodes = 3
-num_trials = 3
+num_episodes = 9
+num_trials = 1
 
 smooth_weight = "0.2"
 hand_smooth_weight = "0.8"
 
 # Path to your Bash script
-script_path = "human_plan/sim_eval/scripts/aug_shift_30hz/fullpretrain_p30_h5_transv2.sh"  # Update this to your script's path
+script_path = "human_plan/ego_bench_eval/fullpretrain_p30_h5_transv2.sh"  # Update this to your script's path
 
 project_trajs = "1"
 save_frames = "0"
@@ -65,8 +65,8 @@ for task_name in tqdm(task_names, desc="Task Name"):
           )
           result = subprocess.run(
               ["bash", script_path, task_name, room_idx, table_idx, smooth_weight, str(num_episodes), str(num_trials), result_saving_path, save_frames, project_trajs, hand_smooth_weight, video_saving_path, additional_label ],  # Command to run the Bash script
-              capture_output=True,          # Capture the output
-              text=True,                    # Return output as string
+              # capture_output=True,          # Capture the output
+              # text=True,                    # Return output as string
               check=True                    # Raise an error if the command fails
           )
           print(f"Output for '{task_name} {room_idx}':\n{result.stdout}")

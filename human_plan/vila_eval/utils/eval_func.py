@@ -31,35 +31,58 @@ def eval_single_sample(
   image_width=EPIC_KITCHEN_WIDTH,
   image_height=EPIC_KITCHEN_HEIGHT,
 ):
+  model_device = next(model.parameters()).device
   data_dict = {}
-  data_dict["images"] = raw_data_dict["image"].to(model.dtype).to(model.device)
+  data_dict["images"] = raw_data_dict["image"].to(model.dtype).to(model_device)
 
   num_images = data_dict["images"].shape[0]
 
+  input_ids_tensor = raw_data_dict["input_ids"]
+  if isinstance(input_ids_tensor, torch.Tensor):
+    if input_ids_tensor.device != model_device:
+      input_ids_tensor = input_ids_tensor.to(model_device)
+  else:
+    input_ids_tensor = torch.tensor(input_ids_tensor, device=model_device)
+  
+  labels_tensor = raw_data_dict["labels"]
+  if isinstance(labels_tensor, torch.Tensor):
+    if labels_tensor.device != model_device:
+      labels_tensor = labels_tensor.to(model_device)
+  else:
+    labels_tensor = torch.tensor(labels_tensor, device=model_device)
+
   data_dict["input_ids"] = torch.nn.utils.rnn.pad_sequence(
-      [raw_data_dict["input_ids"]], batch_first=True, padding_value=tokenizer.pad_token_id
-  ).to(model.device)
-  data_dict["attention_mask"]=data_dict["input_ids"].ne(tokenizer.pad_token_id).to(model.device)
+      [input_ids_tensor], batch_first=True, padding_value=tokenizer.pad_token_id
+  )
+  data_dict["attention_mask"] = data_dict["input_ids"].ne(tokenizer.pad_token_id)
   data_dict["labels"] = torch.nn.utils.rnn.pad_sequence(
-      [raw_data_dict["labels"]], batch_first=True, padding_value=-100
-  ).to(model.device)
+      [labels_tensor], batch_first=True, padding_value=-100
+  )
 
   data_dict["inference"] = True
-  data_dict["raw_action_labels"] = raw_data_dict["raw_action_label"].to(model.dtype).to(model.device) # No Need to Unsqueeze
-  data_dict["raw_action_masks"] = raw_data_dict["raw_action_mask"].to(model.device) # No Need to Unsqueeze
+  data_dict["raw_action_labels"] = raw_data_dict["raw_action_label"].to(model.dtype).to(model_device) # No Need to Unsqueeze
+  data_dict["raw_action_masks"] = raw_data_dict["raw_action_mask"].to(model_device) # No Need to Unsqueeze
 
-  data_dict["raw_proprio_inputs"] = raw_data_dict["proprio_input"].to(model.dtype).to(model.device)
-  data_dict["raw_proprio_inputs_2d"] = raw_data_dict["proprio_input_2d"].to(model.dtype).to(model.device)
-  data_dict["raw_proprio_inputs_3d"] = raw_data_dict["proprio_input_3d"].to(model.dtype).to(model.device)
-  data_dict["raw_proprio_inputs_rot"] = raw_data_dict["proprio_input_rot"].to(model.dtype).to(model.device)
-  data_dict["raw_proprio_inputs_handdof"] = raw_data_dict["proprio_input_handdof"].to(model.dtype).to(model.device)
-  data_dict["raw_proprio_inputs_hand_finger_tip"] = raw_data_dict["proprio_input_hand_finger_tip"].to(model.dtype).to(model.device)
-  data_dict["raw_ee_movement_masks"] = raw_data_dict["ee_movement_mask"].to(model.dtype).to(model.device)
+  data_dict["raw_proprio_inputs"] = raw_data_dict["proprio_input"].to(model.dtype).to(model_device)
+  data_dict["raw_proprio_inputs_2d"] = raw_data_dict["proprio_input_2d"].to(model.dtype).to(model_device)
+  data_dict["raw_proprio_inputs_3d"] = raw_data_dict["proprio_input_3d"].to(model.dtype).to(model_device)
+  data_dict["raw_proprio_inputs_rot"] = raw_data_dict["proprio_input_rot"].to(model.dtype).to(model_device)
+  data_dict["raw_proprio_inputs_handdof"] = raw_data_dict["proprio_input_handdof"].to(model.dtype).to(model_device)
+  data_dict["raw_proprio_inputs_hand_finger_tip"] = raw_data_dict["proprio_input_hand_finger_tip"].to(model.dtype).to(model_device)
+  data_dict["raw_ee_movement_masks"] = raw_data_dict["ee_movement_mask"].to(model.dtype).to(model_device)
+
+  for k, v in data_dict.items():
+    if isinstance(v, torch.Tensor):
+      if v.device != model_device:
+        data_dict[k] = v.to(model_device)
+    elif isinstance(v, (list, tuple)) and v and isinstance(v[0], torch.Tensor):
+      for i, t in enumerate(v):
+        if t.device != model_device:
+          v[i] = t.to(model_device)
 
   with torch.inference_mode():
-      # with torch.eval():
-      output = model.forward(**data_dict)
-  # print(output.prediction)
+    output = model.forward(**data_dict)
+  
   return output.prediction.cpu().numpy(), \
     raw_data_dict["raw_image_obs"], \
     raw_data_dict["raw_action_label"].cpu().numpy(), \

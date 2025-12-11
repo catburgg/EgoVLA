@@ -251,16 +251,10 @@ def process_proprio_input(
     left_ee_pose_cam_frame[:, :3, -1], cam_intrinsics
   )
 
-  mano_dof = infer_retarget_to_mano(
-      hand_mano_retarget_net, 
-      current_qpos
-  )
-  mano_dof_left = mano_dof[:15]
-  mano_dof_left = norm_hand_dof(torch.Tensor(mano_dof_left))
+  mano_dof = infer_retarget_to_mano(hand_mano_retarget_net, current_qpos)
+  mano_dof_left = norm_hand_dof(torch.tensor(mano_dof[:15], device="cuda"))
   mano_dof_left = norm_hand_dof(mano_dof_left)
-
-  mano_dof_right = mano_dof[15:]
-  mano_dof_right = norm_hand_dof(torch.Tensor(mano_dof_right))
+  mano_dof_right = norm_hand_dof(torch.tensor(mano_dof[15:], device="cuda"))
   mano_dof_right = norm_hand_dof(mano_dof_right)
 
   current_proprio = {
@@ -300,8 +294,8 @@ def process_proprio_input(
   ], dim=-1)
 
   hand_dof_inputs = torch.concat([
-      torch.tensor(current_proprio["left_hand_pose"]["mano_parameters"], device="cuda").float(),
-      torch.tensor(current_proprio["right_hand_pose"]["mano_parameters"], device="cuda").float()
+      current_proprio["left_hand_pose"]["mano_parameters"].float(),
+      current_proprio["right_hand_pose"]["mano_parameters"].float()
   ], dim=-1)
 
   finger_tip_inputs = torch.concat([
@@ -332,6 +326,57 @@ def process_proprio_input(
     "proprio_input_hand_finger_tip": finger_tip_inputs.reshape(-1, 5 * 3 * 2)
   })
   return proprio_input, raw_proprio_inputs
+
+def ik_solve(
+    env,
+    left_ik_controller,
+    right_ik_controller,
+    left_ik_commands_world,
+    right_ik_commands_world,
+    left_ik_commands_robot,
+    right_ik_commands_robot,
+    left_ee_goal,
+    right_ee_goal,
+):
+    left_jacobin_idx = env.left_ee_idx - 1
+    right_jacobin_idx = env.right_ee_idx - 1
+
+    robot_pose_w = env.robot.data.root_state_w[:, 0:7]
+    left_arm_jacobian = env.robot.root_physx_view.get_jacobians()[:, left_jacobin_idx, :, env.cfg.left_arm_cfg.joint_ids]
+    left_ee_curr_pose_world = env.robot.data.body_state_w[:, env.cfg.left_arm_cfg.body_ids[0], 0:7]
+    left_joint_pos = env.robot.data.joint_pos[:, env.cfg.left_arm_cfg.joint_ids]
+    right_arm_jacobian = env.robot.root_physx_view.get_jacobians()[:, right_jacobin_idx, :, env.cfg.right_arm_cfg.joint_ids]
+    right_ee_curr_pose_world = env.robot.data.body_state_w[:, env.cfg.right_arm_cfg.body_ids[0], 0:7]
+    right_joint_pos = env.robot.data.joint_pos[:, env.cfg.right_arm_cfg.joint_ids]
+    
+    # Convert current EEF poses from world to robot frame
+    left_ee_curr_pose_robot, left_ee_curr_quat_robot = subtract_frame_transforms(
+        robot_pose_w[:, 0:3], robot_pose_w[:, 3:7], left_ee_curr_pose_world[:, 0:3], left_ee_curr_pose_world[:, 3:7]
+    )
+    right_ee_curr_pos_robot, right_ee_curr_quat_robot = subtract_frame_transforms(
+        robot_pose_w[:, 0:3], robot_pose_w[:, 3:7], right_ee_curr_pose_world[:, 0:3], right_ee_curr_pose_world[:, 3:7]
+    )
+    
+    # Convert goal EEF poses from world to robot frame
+    left_ik_commands_world[:, 0:7] = torch.FloatTensor(left_ee_goal[0:7]).to(left_ik_commands_world.device)
+    left_ik_commands_robot[:, 0:3], left_ik_commands_robot[:, 3:7] = subtract_frame_transforms(
+        robot_pose_w[:, 0:3], robot_pose_w[:, 3:7], left_ik_commands_world[:, 0:3], left_ik_commands_world[:, 3:7]
+    )
+    right_ik_commands_world[:, 0:7] = torch.FloatTensor(right_ee_goal[0:7]).to(right_ik_commands_world.device)
+    right_ik_commands_robot[:, 0:3], right_ik_commands_robot[:, 3:7] = subtract_frame_transforms(
+        robot_pose_w[:, 0:3], robot_pose_w[:, 3:7], right_ik_commands_world[:, 0:3], right_ik_commands_world[:, 3:7]
+    )
+    
+    # Set IK commands
+    left_ik_controller.set_command(left_ik_commands_robot, left_ee_curr_pose_robot, left_ee_curr_quat_robot)
+    right_ik_controller.set_command(right_ik_commands_robot, right_ee_curr_pos_robot, right_ee_curr_quat_robot)
+    
+    # Compute joint positions
+    left_joint_pos_des = left_ik_controller.compute(left_ee_curr_pose_robot, left_ee_curr_quat_robot, left_arm_jacobian, left_joint_pos)
+    right_joint_pos_des = right_ik_controller.compute(right_ee_curr_pos_robot, right_ee_curr_quat_robot, right_arm_jacobian, right_joint_pos)
+    
+    return left_joint_pos_des.cpu().numpy()[0], right_joint_pos_des.cpu().numpy()[0]
+
 
 def ik_step(
     env,
@@ -458,10 +503,14 @@ def ee_pose_from_mano_pose(
 def ee_pose_from_mano_pose_rotmat(
   mano_rot_mat, mano_trans, is_right  
 ):
+  # 自动处理 CUDA 张量转换为 numpy
+  if isinstance(mano_rot_mat, torch.Tensor):
+    mano_rot_mat = mano_rot_mat.detach().cpu().numpy()
+  if isinstance(mano_trans, torch.Tensor):
+    mano_trans = mano_trans.detach().cpu().numpy()
 
   retarget_axis_transformation = RIGHT_AXIS_TRANSFORMATION_RETARGET_ISAACLAB if is_right else \
     LEFT_AXIS_TRANSFORMATION_RETARGET_ISAACLAB
-
   pelvis = RIGHT_PELVIS if is_right else LEFT_PELVIS
 
   ee_rot = mano_rot_mat @ np.linalg.inv(retarget_axis_transformation.cpu().numpy())
@@ -533,6 +582,8 @@ def process_input(
     rgb_obs_hist[-1]
   )
   image = torch.stack(rgb_obs, dim=0)
+  if image.device.type != "cuda":
+    image = image.to("cuda")
 
   language_instruction = preprocess_language_instruction(
     raw_language_instruction, valid_his_len, data_args
@@ -545,10 +596,10 @@ def process_input(
 
   hand_label_place_holder = torch.zeros((
     data_args.predict_future_step, 4 + 6 + 6 + 30
-  ))
+  ), device="cuda")
   mask_place_holder = torch.ones((
     data_args.predict_future_step, 4 + 6 + 6 + 30
-  )).bool()
+  ), device="cuda").bool()
 
   data_dict = preprocess_vla(
     language_instruction,
@@ -569,6 +620,16 @@ def process_input(
     raw_language_label=raw_language_instruction
   )
 
+  # 确保 input_ids 和 labels 在 CUDA 上（它们默认在 CPU 上）
+  if "input_ids" in data_dict and isinstance(data_dict["input_ids"], torch.Tensor):
+    data_dict["input_ids"] = data_dict["input_ids"].to("cuda")
+  if "labels" in data_dict and isinstance(data_dict["labels"], torch.Tensor):
+    data_dict["labels"] = data_dict["labels"].to("cuda")
+  if "raw_action_label" in data_dict and isinstance(data_dict["raw_action_label"], torch.Tensor):
+    data_dict["raw_action_label"] = data_dict["raw_action_label"].to("cuda")
+  if "raw_action_mask" in data_dict and isinstance(data_dict["raw_action_mask"], torch.Tensor):
+    data_dict["raw_action_mask"] = data_dict["raw_action_mask"].to("cuda")
+
   data_dict["image"] = image
 
   data_dict["raw_rgb_obs_his"] = rgb_obs_his
@@ -577,7 +638,7 @@ def process_input(
   data_dict["raw_image_obs"] = rgb_obs_hist[-1]
 
   data_dict["ee_movement_mask"] = torch.ones(
-    1, 2
+    1, 2, device="cuda"
   )
 
   return data_dict
@@ -661,6 +722,8 @@ def ik_eval_single_step(
 
   pred, result_img, action_labels, action_masks, loss = results
 
+  pred = torch.tensor(pred, device="cuda", dtype=torch.float32)
+
   # N, 2, 2
   # pred_2d = pred[:, :4]
   # N, 2, 3
@@ -672,19 +735,19 @@ def ik_eval_single_step(
   # N, 2, 6
   pred_rot = pred[:, 36:].reshape(-1, 2, 12)
   pred_rotmat = rot6d_to_rotmat(
-    torch.tensor(pred_rot)
+    pred_rot
   ).view(-1, 2, 3, 3)
   
   use_rot_6d = True
 
   left_denormed_dof = denorm_hand_dof(
-    torch.tensor(pred_hand[:, 0, :])#.to("cuda").float()
-  ).to("cuda").float()
+    pred_hand[:, 0, :]
+  ).float()
   left_denormed_dof[..., 6:] = 0
 
   right_denormed_dof = denorm_hand_dof(
-    torch.tensor(pred_hand[:, 1, :])#.to("cuda").float()
-  ).to("cuda").float()
+    pred_hand[:, 1, :]
+  ).float()
   right_denormed_dof[..., 6:] = 0
 
   left_hand3d_kps_forretarget = mano_forward_retarget(

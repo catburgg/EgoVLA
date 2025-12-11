@@ -10,32 +10,30 @@ PROJ_TRAJS=$9
 HAND_SMOOTH_WEIGHT=${10}
 video_saving_path=${11}
 additional_label=${12}
-use_per_step_instruction=${13}
+WEBSOCKET_URL=${13:-ws://localhost:8765}
 
+# Source environment if needed
 # source /home/rchal97/code/clean_egovla/isaacsim/setup_conda_env.sh
-# ISAAC_PY=$(python - <<'PY'
-# import isaacsim, os
-# print(os.path.dirname(isaacsim.__file__))
-# PY
-# )
-# export ISAAC_PATH="$ISAAC_PY"
-unset ISAAC_PATH CARB_APP_PATH
 
-LOG_ROOT=logs
+echo "Starting WebSocket Client..."
+echo "Task: $TASK"
+echo "WebSocket URL: $WEBSOCKET_URL"
 
-RUN_NAME=temp
-OUTPUT_DIR=$LOG_ROOT/$RUN_NAME
-
-bs=16
-n_node=1
-
-exp_id=ego_vla_checkpoint
-checkpoint_xxx=$(find checkpoints/$exp_id -type d -name "ckpt-*" -print -quit)
-echo $checkpoint_xxx
-
-# deepspeed human_plan/train/train_vla_finetune_llava.py \
-python human_plan/ego_bench_eval/ik_agent_30hz.py \
-    --model_name_or_path $checkpoint_xxx \
+python human_plan/ego_bench_eval/websocket_client.py \
+    --task "$TASK" \
+    --room_idx "$ROOM_IDX" \
+    --table_idx "$TABLE_IDX" \
+    --smooth_weight "$SMOOTH_WEIGHT" \
+    --num_episodes "$NUM_EPISODES" \
+    --num_trials "$NUM_TRIALS" \
+    --result_saving_path "$SAVING_PATH" \
+    --save_frames "$SAVE_FRAMES" \
+    --project_trajs "$PROJ_TRAJS" \
+    --hand_smooth_weight "$HAND_SMOOTH_WEIGHT" \
+    --video_saving_path "$video_saving_path" \
+    --additional_label "$additional_label" \
+    --websocket_url "$WEBSOCKET_URL" \
+    --output_dir tmp/ \
     --version qwen2 \
     --vision_tower google/siglip-so400m-patch14-384 \
     --data_mixture otv_sim_fixed_set_aug_AUG_SHIFT_30Hz_train \
@@ -50,29 +48,6 @@ python human_plan/ego_bench_eval/ik_agent_30hz.py \
     --image_aspect_ratio resize \
     --bf16 True \
     --group_by_modality_length False \
-    --output_dir $OUTPUT_DIR \
-    --num_train_epochs 100 \
-    --per_device_train_batch_size $bs \
-    --per_device_eval_batch_size 4 \
-    --eval_accumulation_steps 1 \
-    --gradient_accumulation_steps 1 \
-    --eval_data_mixture otv_sim_fixed_set_aug_AUG_SHIFT_30Hz_train_sub100 \
-    --evaluation_strategy "steps" \
-    --eval_steps 250 \
-    --save_strategy "steps" \
-    --save_steps 100 \
-    --save_total_limit 2 \
-    --learning_rate 2e-5 \
-    --weight_decay 0. \
-    --warmup_ratio 0.03 \
-    --lr_scheduler_type "constant" \
-    --logging_steps 1 \
-    --model_max_length 4096 \
-    --gradient_checkpointing True \
-    --dataloader_num_workers 16 \
-    --lazy_preprocess True \
-    --report_to wandb \
-    --run_name $RUN_NAME \
     --future_index 1 \
     --predict_future_step 30 \
     --max_action 1 \
@@ -98,7 +73,7 @@ python human_plan/ego_bench_eval/ik_agent_30hz.py \
     --next_token_loss_coeff 0.0 \
     --traj_action_output_ee_2d_dim 0 \
     --traj_action_output_ee_dim 6 \
-    --traj_action_output_hand_dim 30  \
+    --traj_action_output_hand_dim 30 \
     --traj_action_output_ee_rot_dim 12 \
     --ee_rot_representation rot6d \
     --correct_transformation True \
@@ -112,16 +87,5 @@ python human_plan/ego_bench_eval/ik_agent_30hz.py \
     --use_mano True \
     --sep_proprio True \
     --sep_query_token True \
-    --loss_use_l1 True \
-    --task $TASK \
-    --room_idx $ROOM_IDX \
-    --table_idx $TABLE_IDX \
-    --smooth_weight $SMOOTH_WEIGHT \
-    --num_episodes $NUM_EPISODES \
-    --num_trials $NUM_TRIALS \
-    --result_saving_path $SAVING_PATH \
-    --save_frames $SAVE_FRAMES \
-    --project_trajs $PROJ_TRAJS \
-    --hand_smooth_weight $HAND_SMOOTH_WEIGHT \
-    --video_saving_path $video_saving_path \
-    --additional_label $additional_label 
+    --loss_use_l1 True
+

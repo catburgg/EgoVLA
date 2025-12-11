@@ -190,6 +190,9 @@ def preprocess_vla(
       # 10, 46, 1
       label_mask_for_tokenizer = label_mask_for_tokenizer.repeat(2)
 
+    if isinstance(label_mask_for_tokenizer, torch.Tensor):
+      label_mask_for_tokenizer = label_mask_for_tokenizer.detach().cpu().numpy()
+
     action_text = action_tokenizer(
       (np.ones_like(label_mask_for_tokenizer) * 0.5).reshape(-1),
       label_mask_for_tokenizer.reshape(-1)

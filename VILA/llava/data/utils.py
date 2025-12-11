@@ -49,6 +49,18 @@ mano_per_dim_max = torch.concat([
 mano_range = mano_per_dim_max - mano_per_dim_min
 
 def norm_hand_dof(hand_dof):
+  device = hand_dof.device if isinstance(hand_dof, torch.Tensor) else "cpu"
+  mano_per_dim_min_device = mano_per_dim_min.to(device)
+  mano_range_device = mano_range.to(device)
+  return (hand_dof - mano_per_dim_min_device) / mano_range_device
+
+def denorm_hand_dof(hand_dof):
+  device = hand_dof.device if isinstance(hand_dof, torch.Tensor) else "cpu"
+  mano_range_device = mano_range.to(device)
+  mano_per_dim_min_device = mano_per_dim_min.to(device)
+  return hand_dof * mano_range_device + mano_per_dim_min_device
+
+def norm_hand_dof(hand_dof):
   return (hand_dof - mano_per_dim_min) / mano_range
 
 def denorm_hand_dof(hand_dof):

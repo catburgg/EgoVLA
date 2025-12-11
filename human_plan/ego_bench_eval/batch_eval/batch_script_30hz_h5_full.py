@@ -38,7 +38,7 @@ smooth_weight = "0.2"
 hand_smooth_weight = "0.8"
 
 # Path to your Bash script
-script_path = "human_plan/ego_bench_eval/scripts/aug_shift_30hz/fullpretrain_p30_h5_transv2.sh"  # Update this to your script's path
+script_path = "human_plan/ego_bench_eval/fullpretrain_p30_h5_transv2.sh"  # Update this to your script's path
 
 project_trajs = "0"
 save_frames = "0"
